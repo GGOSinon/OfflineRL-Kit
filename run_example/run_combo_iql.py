@@ -19,7 +19,7 @@ from offlinerlkit.utils.load_dataset import qlearning_dataset
 from offlinerlkit.buffer import ReplayBuffer
 from offlinerlkit.utils.logger import Logger, make_log_dirs
 from offlinerlkit.policy_trainer import MBPolicyTrainer
-from offlinerlkit.policy import COMBOPolicy
+from offlinerlkit.policy import COMBOIQLPolicy
 
 
 """
@@ -47,6 +47,7 @@ def get_args():
     parser.add_argument("--hidden-dims", type=int, nargs='*', default=[256, 256, 256])
     parser.add_argument("--gamma", type=float, default=0.99)
     parser.add_argument("--tau", type=float, default=0.005)
+    parser.add_argument("--iql_tau", type=float, default=0.9)
     parser.add_argument("--alpha", type=float, default=0.2)
     parser.add_argument("--auto-alpha", default=True)
     parser.add_argument("--target-entropy", type=int, default=None)
@@ -102,6 +103,7 @@ def train(args=get_args()):
 
     # create policy model
     actor_backbone = MLP(input_dim=np.prod(args.obs_shape), hidden_dims=args.hidden_dims)
+    value_backbone = MLP(input_dim=np.prod(args.obs_shape), hidden_dims=args.hidden_dims)
     critic1_backbone = MLP(input_dim=np.prod(args.obs_shape) + args.action_dim, hidden_dims=args.hidden_dims)
     critic2_backbone = MLP(input_dim=np.prod(args.obs_shape) + args.action_dim, hidden_dims=args.hidden_dims)
     dist = TanhDiagGaussian(
@@ -111,9 +113,11 @@ def train(args=get_args()):
         conditioned_sigma=True
     )
     actor = ActorProb(actor_backbone, dist, args.device)
+    value = Critic(value_backbone, args.device) 
     critic1 = Critic(critic1_backbone, args.device)
     critic2 = Critic(critic2_backbone, args.device)
     actor_optim = torch.optim.Adam(actor.parameters(), lr=args.actor_lr)
+    value_optim = torch.optim.Adam(value.parameters(), lr=args.critic_lr)
     critic1_optim = torch.optim.Adam(critic1.parameters(), lr=args.critic_lr)
     critic2_optim = torch.optim.Adam(critic2.parameters(), lr=args.critic_lr)
 
@@ -157,15 +161,18 @@ def train(args=get_args()):
         dynamics.load(args.load_dynamics_path)
 
     # create policy
-    policy = COMBOPolicy(
+    policy = COMBOIQLPolicy(
         dynamics,
         actor,
+        value,
         critic1,
         critic2,
         actor_optim,
+        value_optim,
         critic1_optim,
         critic2_optim,
         action_space=env.action_space,
+        iql_tau=args.iql_tau,
         tau=args.tau,
         gamma=args.gamma,
         alpha=alpha,
@@ -231,7 +238,8 @@ def train(args=get_args()):
     # train
     if not load_dynamics_model:
         dynamics.train(real_buffer.sample_all(), logger, max_epochs_since_update=5)
-    
+        os.makedirs(os.path.join('./models/dynamics-ensemble/', args.task), exist_ok = True)
+        dynamics.save(os.path.join('./models/dynamics-ensemble/', args.task))
     policy_trainer.train()
 
 

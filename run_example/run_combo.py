@@ -234,6 +234,8 @@ def train(args=get_args()):
     
     policy_trainer.train()
 
-
+import vessl
 if __name__ == "__main__":
+    vessl.configure(project_name='Offline-Model-based-RL')
+    vessl.init()
     train()

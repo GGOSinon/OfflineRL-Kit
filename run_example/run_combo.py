@@ -80,11 +80,21 @@ def get_args():
     parser.add_argument("--eval_episodes", type=int, default=10)
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
+    parser.add_argument("--wandb_key", type=str, default=None)
 
     return parser.parse_args()
 
 
 def train(args=get_args()):
+    wandb.login(key=args.wandb_key)
+    run = wandb.init(
+        project="COMBO+IQL",
+        config={
+            'env_name': args.task,
+            'seed': args.seed,
+        },
+    )
+
     # create env and dataset
     env = gym.make(args.task)
     dataset = qlearning_dataset(env)
@@ -209,7 +219,7 @@ def train(args=get_args()):
         "dynamics_training_progress": "csv",
         "tb": "tensorboard"
     }
-    logger = Logger(log_dirs, output_config)
+    logger = Logger(log_dirs, output_config, wandb_logger=run)
     logger.log_hyperparameters(vars(args))
 
     # create policy trainer
@@ -231,11 +241,12 @@ def train(args=get_args()):
     # train
     if not load_dynamics_model:
         dynamics.train(real_buffer.sample_all(), logger, max_epochs_since_update=5)
-    
+        os.makedirs(os.path.join('./models/dynamics-ensemble/', args.task), exist_ok = True)
+        dynamics.save(os.path.join('./models/dynamics-ensemble/', args.task))
     policy_trainer.train()
 
-import vessl
+import wandb
 if __name__ == "__main__":
-    vessl.configure(project_name='Offline-Model-based-RL')
-    vessl.init()
+    #vessl.configure(project_name='Offline-Model-based-RL')
+    #vessl.init()
     train()

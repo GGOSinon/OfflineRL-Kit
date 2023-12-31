@@ -6,6 +6,7 @@ import argparse
 import datetime
 import warnings
 import numpy as np
+#import vessl
 
 from collections import defaultdict, deque
 from typing import Any, Dict, List, Optional, Sequence, TextIO, Tuple, Union
@@ -244,7 +245,7 @@ HANDLER = {
 
 
 class Logger(object):
-    def __init__(self, dir: str, ouput_config: Dict) -> None:
+    def __init__(self, dir: str, ouput_config: Dict, wandb_logger) -> None:
         self._dir = dir
         self._init_dirs()
         self._init_ouput_handlers(ouput_config)
@@ -252,6 +253,7 @@ class Logger(object):
         self._name2cnt = defaultdict(int)
         self._level = INFO
         self._timestep = 0
+        self._wandb_logger = wandb_logger
     
     def _init_dirs(self) -> None:
         self._record_dir = os.path.join(self._dir, "record")
@@ -305,6 +307,9 @@ class Logger(object):
                 if exclude is not None and handler.handler_name in exclude:
                     continue
                 handler.writekvs(self._name2val)
+
+        self._wandb_logger.log(self._name2val)
+        #vessl.log(step=self._timestep, payload=self._name2val)
         self._name2val.clear()
         self._name2cnt.clear()
 

@@ -89,6 +89,7 @@ def train(args=get_args()):
     wandb.login(key=args.wandb_key)
     run = wandb.init(
         project="COMBO+IQL",
+        name=f"COMBO_{args.task}_{args.seed}",
         config={
             'env_name': args.task,
             'seed': args.seed,

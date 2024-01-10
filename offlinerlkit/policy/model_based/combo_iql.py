@@ -134,7 +134,7 @@ class COMBOIQLPolicy(CQLPolicy):
         value_loss.backward(retain_graph=True)
         self.value_optim.step()
 
-        exp_adv = torch.clamp(torch.exp(q_values - v_values.detach()), max=100.) 
+        exp_adv = torch.exp(torch.clamp(q_values - v_values.detach(), max=5.))
 
         actor_loss = (self._alpha * log_probs - exp_adv).mean()
         self.actor_optim.zero_grad()

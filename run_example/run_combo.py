@@ -84,6 +84,15 @@ def get_args():
 
     return parser.parse_args()
 
+def load_neorl_dataset(env, data_type, traj_num=1000):
+    train_data, _ = env.get_dataset(data_type=data_type, train_num=traj_num, need_val=False)
+    dataset = {}
+    dataset["observations"] = train_data["obs"]
+    dataset["actions"] = train_data["action"]
+    dataset["next_observations"] = train_data["next_obs"]
+    dataset["rewards"] = train_data["reward"]
+    dataset["terminals"] = train_data["done"]
+    return dataset
 
 def train(args=get_args()):
     wandb.login(key=args.wandb_key)
@@ -96,9 +105,17 @@ def train(args=get_args()):
         },
     )
 
+    is_neorl = args.task.split('-')[1] == 'v3'
+
     # create env and dataset
-    env = gym.make(args.task)
-    dataset = qlearning_dataset(env)
+    if is_neorl:
+        import neorl
+        task, version, data_type = tuple(args.task.split("-"))
+        env = neorl.make(task+'-'+version)
+        dataset = load_neorl_dataset(env, data_type)
+    else:
+        env = gym.make(args.task)
+        dataset = qlearning_dataset(env)
     args.obs_shape = env.observation_space.shape
     args.action_dim = np.prod(env.action_space.shape)
     args.max_action = env.action_space.high[0]
